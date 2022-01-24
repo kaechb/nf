@@ -145,13 +145,13 @@ class NF():
                 self.min_loss = self.losses[-1]
             
     
-    def eval(self,step,N=1000):
+    def eval(self,step,N=100):
         #Generates a sample and calculates wasserstein metrics from truth to gen
         #The tensors are reshaped in a wierd way because jetnet library wants this
         if len(self.metrics.keys())>0:
             self.gen=self.flow(torch.randn([N,90]).to(self.device),rev=True)[0].cpu().detach().numpy()
 
-            self.true=torch.tensor(self.data)[:np.random.choice(N)]
+            self.true=torch.tensor(self.data)[np.random.choice(len(self.data),N)].numpy()
             self.metrics["loss"].append(self.losses[-1])
             self.metrics["step"].append(step)
             start=time.time()
@@ -177,62 +177,69 @@ class NF():
 
 
     def plot(self):
-        path=tune.get_trial_dir()+"/plots"
-        os.mkdir(path)
+       
+        if self.hyperopt:
+            path=tune.get_trial_dir()+"/plots"
+            os.mkdir(path)
+        else:
+            path="plotsq"
+            os.makedirs(path,exist_ok=True)
         for v,name in zip(["eta","pt","m"],[r"$\eta^{rel}$",r"$p_T^{rel}$",r"$m_T^{rel}$"]):
-            v_sum=vector.array({"pt":np.zeros(len(self.gen)),"phi":np.zeros(len(self.gen)),"eta":np.zeros(len(self.gen)),"M":np.zeros(len(self.gen))})
-            v2_sum=vector.array({"pt":np.zeros(len(self.gen)),"phi":np.zeros(len(self.gen)),"eta":np.zeros(len(self.gen)),"M":np.zeros(len(self.gen))})
+            try:
+                v_sum=vector.array({"pt":np.zeros(len(self.gen)),"phi":np.zeros(len(self.gen)),"eta":np.zeros(len(self.gen)),"M":np.zeros(len(self.gen))})
+                v2_sum=vector.array({"pt":np.zeros(len(self.gen)),"phi":np.zeros(len(self.gen)),"eta":np.zeros(len(self.gen)),"M":np.zeros(len(self.gen))})
 
-            if v=="pt":
-                a=0
-                b=0.1
-            if v=="eta":
-                a=-0.4
-                b=0.4
-            if  v=="m":
-                a=0
-                b=0.25
+                if v=="pt":
+                    a=0
+                    b=0.1
+                if v=="eta":
+                    a=-0.4
+                    b=0.4
+                if  v=="m":
+                    a=0
+                    b=0.25
+                
+                h=hist.Hist(hist.axis.Regular(100,a,b))
+                h2=hist.Hist(hist.axis.Regular(100,a,b))
             
-            h=hist.Hist(hist.axis.Regular(100,a,b))
-            h2=hist.Hist(hist.axis.Regular(100,a,b))
-        
-            if v=="m":
-                m=np.zeros_like(self.gen[:,0])
-                m_t=np.zeros_like(self.gen[:,0])
-                for i in range(30):
-                    m+=(np.cos(self.gen[:,3*i])*self.gen[:,3*i+2])**2+(np.sin(self.gen[:,3*i])*self.gen[:,3*i+2])**2
-                    m_t+=(np.cos(self.true[:,3*i])*self.true[:,3*i+2])**2+(np.sin(self.true[:,3*i])*self.true[:,3*i+2])**2
-                h.fill(m)
-                h2.fill(m_t)
-            if v=="eta": 
+                if v=="m":
+                    m=np.zeros_like(self.gen[:,0])
+                    m_t=np.zeros_like(self.gen[:,0])
+                    for i in range(30):
+                        m+=(np.cos(self.gen[:,3*i])*self.gen[:,3*i+2])**2+(np.sin(self.gen[:,3*i])*self.gen[:,3*i+2])**2
+                        m_t+=(np.cos(self.true[:,3*i])*self.true[:,3*i+2])**2+(np.sin(self.true[:,3*i])*self.true[:,3*i+2])**2
+                    h.fill(m)
+                    h2.fill(m_t)
+                if v=="eta": 
 
-                h.fill(torch.tensor(self.gen).reshape(len(self.gen)*30,3).numpy()[:,1])
-                h2.fill(torch.tensor(self.true).reshape(len(self.gen)*30,3).numpy()[:,1])
-            if v=="pt":    
-                
-                h.fill(torch.tensor(self.gen).reshape(len(self.gen)*30,3).numpy()[:,2])
-                h2.fill(torch.tensor(self.true).reshape(len(self.true)*30,3).numpy()[:,2])
-                
-        
+                    h.fill(torch.tensor(self.gen).reshape(len(self.gen)*30,3).numpy()[:,1])
+                    h2.fill(torch.tensor(self.true).reshape(len(self.gen)*30,3).numpy()[:,1])
+                if v=="pt":    
+                    
+                    h.fill(torch.tensor(self.gen).reshape(len(self.gen)*30,3).numpy()[:,2])
+                    h2.fill(torch.tensor(self.true).reshape(len(self.true)*30,3).numpy()[:,2])
+                    
+            
 
-            fig,ax=plt.subplots(2,1,gridspec_kw={'height_ratios': [3, 1]})
-            hep.cms.label(data=False,lumi=None ,year=None,rlabel="",llabel="Private Work",ax=ax[0] )
-            main_ax_artists, sublot_ax_arists = h.plot_ratio(
-                h2,
-                ax_dict={"main_ax":ax[0],"ratio_ax":ax[1]},
-                rp_ylabel=r"Ratio",
-                rp_num_label="Generated",
-                rp_denom_label="Data",
-                rp_uncert_draw_type="line",  # line or bar
-            )
-            ax[0].set_xlabel("")
-            ax[1].set_ylim(0.25,2)
-            ax[0].set_xlim(a,b)
-            ax[1].set_xlim(a,b)
-            plt.xlabel(name)
-            plt.savefig("{}/{}.png".format(path,name))
-            plt.show()
-    
+                fig,ax=plt.subplots(2,1,gridspec_kw={'height_ratios': [3, 1]})
+                hep.cms.label(data=False,lumi=None ,year=None,rlabel="",llabel="Private Work",ax=ax[0] )
+                main_ax_artists, sublot_ax_arists = h.plot_ratio(
+                    h2,
+                    ax_dict={"main_ax":ax[0],"ratio_ax":ax[1]},
+                    rp_ylabel=r"Ratio",
+                    rp_num_label="Generated",
+                    rp_denom_label="Data",
+                    rp_uncert_draw_type="line",  # line or bar
+                )
+                ax[0].set_xlabel("")
+                ax[1].set_ylim(0.25,2)
+                ax[0].set_xlim(a,b)
+                ax[1].set_xlim(a,b)
+                plt.xlabel(name)
+                plt.savefig("{}/{}.png".format(path,v))
+                plt.close()
+            except:
+                pass    
     # plt.ylim(0.5,2)
     # plt.tight_layout()
 
@@ -241,9 +248,7 @@ class NF():
         fake_data,_ = inn(torch.randn(batch_size,90).to(device))
         # Sample Epsilon from uniform distribution
         eps = torch.rand(batch_size, 90).to(device)
-        # eps = eps.expand_as(real_data)
-        
-        # Interpolation between real data and fake data.
+            # Interpolation between real data and fake data.
         interpolation = eps * real_data + (1 - eps) * fake_data
  
         # get logits for interpolated images
@@ -263,6 +268,9 @@ class NF():
         gradients = gradients.view(  batch_size, -1)
         grad_norm = gradients.norm(2, 1)
         return torch.mean((grad_norm - 1) ** 2)
+    
+  
+  
     
     
         
@@ -305,7 +313,7 @@ if __name__=='__main__':
             "lr": tune.uniform(0.0001,0.001),# tune.sample_from(lambda _: 1**(int(-np.random.randint(1, 4))),
             "activation": tune.uniform(0,3),
             "coupling_layers":tune.randint(6,80),
-            "max_steps":100            
+            "max_steps":1000            
             }
     
 
@@ -315,24 +323,23 @@ if __name__=='__main__':
     use_scheduler=False
     data_dir="/home/kaechben/JetNet_NF/train_{}_jets.csv".format(sys.argv[1])
     configs=[]
-    configs=['/home/kaechben/ray_results/q/train_544ae_00013_13_activation=2.5991,coupling_layers=75,lr=0.00075166,network_layers=6,network_nodes=554_2022-01-23_19-50-31',
-       '/home/kaechben/ray_results/q/train_544ae_00336_336_activation=2.0892,coupling_layers=43,lr=0.00097805,network_layers=6,network_nodes=593_2022-01-24_05-57-52',
-       '/home/kaechben/ray_results/q/train_544ae_00606_606_activation=2.8892,coupling_layers=69,lr=0.00091325,network_layers=4,network_nodes=582_2022-01-24_13-58-13',
-       '/home/kaechben/ray_results/q/train_544ae_00450_450_activation=2.6224,coupling_layers=57,lr=0.00098424,network_layers=6,network_nodes=459_2022-01-24_09-15-59',
-       '/home/kaechben/ray_results/q/train_544ae_00116_116_activation=2.1155,coupling_layers=53,lr=0.00083447,network_layers=5,network_nodes=594_2022-01-23_22-57-06',
-       '/home/kaechben/ray_results/q/train_544ae_00470_470_activation=2.4121,coupling_layers=50,lr=0.00091957,network_layers=6,network_nodes=476_2022-01-24_10-01-48',
-       '/home/kaechben/ray_results/q/train_544ae_00690_690_activation=2.3466,coupling_layers=51,lr=0.00098684,network_layers=7,network_nodes=454_2022-01-24_16-38-22',
-       '/home/kaechben/ray_results/q/train_544ae_00307_307_activation=2.6789,coupling_layers=68,lr=0.00074161,network_layers=7,network_nodes=434_2022-01-24_04-52-06',
-       '/home/kaechben/ray_results/q/train_544ae_00424_424_activation=2.5037,coupling_layers=44,lr=0.00073179,network_layers=7,network_nodes=556_2022-01-24_08-34-09',
-       '/home/kaechben/ray_results/q/train_544ae_00278_278_activation=2.485,coupling_layers=43,lr=0.0009597,network_layers=7,network_nodes=442_2022-01-24_03-53-49']
-    
+    configs=['/home/kaechben/ray_results/t/train_e5559_00198_198_activation=2.3708,coupling_layers=63,lr=0.00084557,network_layers=6,network_nodes=573_2022-01-24_00-18-01',
+       '/home/kaechben/ray_results/t/train_e5559_00254_254_activation=2.6771,coupling_layers=53,lr=0.00082224,network_layers=7,network_nodes=529_2022-01-24_01-21-20',
+       '/home/kaechben/ray_results/t/train_e5559_00159_159_activation=2.076,coupling_layers=74,lr=0.00069041,network_layers=4,network_nodes=568_2022-01-23_23-32-39',
+       '/home/kaechben/ray_results/t/train_e5559_00228_228_activation=2.5946,coupling_layers=36,lr=0.00096199,network_layers=5,network_nodes=562_2022-01-24_00-58-46',
+       '/home/kaechben/ray_results/t/train_e5559_00180_180_activation=2.3686,coupling_layers=37,lr=0.0006505,network_layers=7,network_nodes=591_2022-01-23_23-55-53',
+       '/home/kaechben/ray_results/t/train_e5559_00074_74_activation=2.2518,coupling_layers=57,lr=0.00065934,network_layers=7,network_nodes=459_2022-01-23_22-05-51',
+       '/home/kaechben/ray_results/t/train_e5559_00145_145_activation=2.887,coupling_layers=59,lr=0.00068318,network_layers=7,network_nodes=420_2022-01-23_23-16-03',
+       '/home/kaechben/ray_results/t/train_e5559_00101_101_activation=2.3974,coupling_layers=64,lr=0.00066155,network_layers=4,network_nodes=507_2022-01-23_22-38-48',
+       '/home/kaechben/ray_results/t/train_e5559_00238_238_activation=2.5048,coupling_layers=61,lr=0.00077136,network_layers=7,network_nodes=372_2022-01-24_01-08-00',
+       '/home/kaechben/ray_results/t/train_e5559_00265_265_activation=2.9177,coupling_layers=62,lr=0.00099157,network_layers=3,network_nodes=418_2022-01-24_01-29-39']
     hyperopt=""
     if hyperopt!="":
         init("auto",_redis_password='5241590000000000')
     # Create HyperBand scheduler 
     scheduler = HyperBandScheduler(metric="loss", mode="min")
 
-    limit=100
+    limit=-1
 
     data=pd.read_csv(data_dir,sep=" ",header=None)
     jets=[]
