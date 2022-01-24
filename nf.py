@@ -100,10 +100,10 @@ class NF():
         return inn
     
     def set_training(self):  
-        if  self.config["opt"]=="adamw":
-            self.optimizer = torch.optim.AdamW(self.flow.parameters(), lr=self.config["lr"],weight_decay=self.config["wdecay"])
-        elif  self.config["opt"]=="adamw":
+        if  self.config["opt"]=="adam":
             self.optimizer = torch.optim.Adam(self.flow.parameters(), lr=self.config["lr"])
+        else:#elif  self.config["opt"]=="adam":
+            self.optimizer = torch.optim.AdamW(self.flow.parameters(), lr=self.config["lr"],weight_decay=self.config["wdecay"])
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, self.config["lrdecay"])
 
     def train(self,scheduler=None,patience=20):
@@ -156,20 +156,20 @@ class NF():
             self.metrics["step"].append(step)
             start=time.time()
             if "w1p" in self.metrics.keys():
-                w1p=np.round(jetnet.evaluation.w1p(gen[:N].reshape((len(gen[:N]),30,3)),
-                true[:N].reshape((len(true[:N]),30,3)),num_batches=20),5)[0]
+                w1p=np.round(jetnet.evaluation.w1p(self.gen[:N].reshape((len(self.gen[:N]),30,3)),
+                self.true[:N].reshape((len(self.true[:N]),30,3)),num_batches=20),5)[0]
                 self.metrics["w1p"].append(w1p)                
                 print("w1p: {} s".format(time.time()-start))
             start=time.time()
             if "w1m" in self.metrics.keys():
-                w1m=np.round(jetnet.evaluation.w1m(gen[:N].reshape((len(gen[:N]),30,3)),
-                true[:N].reshape((len(true[:N]),30,3)),num_batches=20),5)[0]
+                w1m=np.round(jetnet.evaluation.w1m(self.gen[:N].reshape((len(self.gen[:N]),30,3)),
+                self.true[:N].reshape((len(self.true[:N]),30,3)),num_batches=20),5)[0]
                 self.metrics["w1m"].append(w1m)
                 print("w1m: {} s".format(time.time()-start))
             start=time.time()
             if "w1efp" in self.metrics.keys():
-                w1efp=np.round(jetnet.evaluation.w1efp(gen[:N].reshape((len(gen[:N]),30,3)),
-                true[:N].reshape((len(true[:N]),30,3)),num_batches=20),5)[0]
+                w1efp=np.round(jetnet.evaluation.w1efp(self.gen[:N].reshape((len(self.gen[:N]),30,3)),
+                self.true[:N].reshape((len(self.true[:N]),30,3)),num_batches=20),5)[0]
                 self.metrics["w1efp"].append(w1efp)
                 print("w1efp: {} s".format(time.time()-start))
             if self.hyperopt:
@@ -177,7 +177,7 @@ class NF():
 
 
     def plot(self):
-        path=tune.get_trial_dir()"+/plots"
+        path=tune.get_trial_dir()+"/plots"
         os.mkdir(path)
         for v,name in zip(["eta","pt","m"],[r"$\eta^{rel}$",r"$p_T^{rel}$",r"$m_T^{rel}$"]):
             v_sum=vector.array({"pt":np.zeros(len(self.gen)),"phi":np.zeros(len(self.gen)),"eta":np.zeros(len(self.gen)),"M":np.zeros(len(self.gen))})
@@ -305,7 +305,7 @@ if __name__=='__main__':
             "lr": tune.uniform(0.0001,0.001),# tune.sample_from(lambda _: 1**(int(-np.random.randint(1, 4))),
             "activation": tune.uniform(0,3),
             "coupling_layers":tune.randint(6,80),
-            "max_steps":1000            
+            "max_steps":100            
             }
     
 
@@ -325,7 +325,7 @@ if __name__=='__main__':
        '/home/kaechben/ray_results/q/train_544ae_00307_307_activation=2.6789,coupling_layers=68,lr=0.00074161,network_layers=7,network_nodes=434_2022-01-24_04-52-06',
        '/home/kaechben/ray_results/q/train_544ae_00424_424_activation=2.5037,coupling_layers=44,lr=0.00073179,network_layers=7,network_nodes=556_2022-01-24_08-34-09',
        '/home/kaechben/ray_results/q/train_544ae_00278_278_activation=2.485,coupling_layers=43,lr=0.0009597,network_layers=7,network_nodes=442_2022-01-24_03-53-49']
-
+    
     hyperopt=""
     if hyperopt!="":
         init("auto",_redis_password='5241590000000000')
@@ -354,6 +354,7 @@ if __name__=='__main__':
                 with open("{}/params.json".format(config)) as json_file:
 
                     config=json.load(json_file)
+                config["max_steps"]=1000
                 NF(jets[-1],config)
     
 
@@ -367,7 +368,7 @@ if __name__=='__main__':
                 config=config,
                 num_samples=num_samples,
                 scheduler=scheduler if use_scheduler else None,
-                name=sys.argv[1]
+                name=sys.argv[1]+"test"
             
 
             )
@@ -396,7 +397,7 @@ if __name__=='__main__':
         #     Best Run                               #
         ##############################################
         else:
-            
+          pass   
         if hyperopt!="":
             print(result)
             best_trial = result.get_best_trial("w1p", "min", "last")
