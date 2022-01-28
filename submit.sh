@@ -2,8 +2,8 @@
 #SBATCH --partition=allgpu
 #SBATCH --constraint='V100'|'A100'
 #SBATCH --time=78:00:00                           # Maximum time requested
-#SBATCH --nodes=7                             # Number of nodes
-#SBATCH --chdir=/home/kaechben/slurm/output        # directory must already exist!
+#SBATCH --nodes=3                            # Number of nodes
+#SBATCH --chdir=/home/kaechben/slurm/finalfinal_scan        # directory must already exist!
 #SBATCH --job-name=hostname
 #SBATCH --output=%j.out               # File to which STDOUT will be written
 #SBATCH --error=%j.err                # File to which STDERR will be written
@@ -15,7 +15,7 @@ module purge
 module load maxwell
 module load anaconda3/5.2
 . conda-init
-conda activate fixray
+conda activate numpy
 # gcc/9.3
 
 nodes=$(scontrol show hostnames "$SLURM_JOB_NODELIST")
@@ -62,8 +62,7 @@ for ((i = 1; i <= worker_num; i++)); do
     echo "Starting WORKER $i at $node_i"
     srun --nodes=1 --ntasks=1 -w "$node_i" \
         ray start --temp-dir '/tmp/kaechben/ray' --address "$ip_head" \
-         --block --redis-password='5241590000000000'& 
+         --block & 
     sleep 5
 done
-python -u /home/kaechben/JetNet_NF/nf_scan.py q
-
+python -u /home/kaechben/JetNet_NF/nf.py 
